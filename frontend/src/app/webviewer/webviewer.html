@@ -1,0 +1,149 @@
+<div class="container">
+  <!-- File Upload Section -->
+  <div class="upload-section">
+    <input 
+      #fileInput
+      type="file" 
+      accept=".pdf" 
+      (change)="onFileSelected($event)"
+      style="display: none">
+    
+    <div class="upload-controls">
+      <button 
+        class="btn btn-primary" 
+        (click)="fileInput.click()"
+        [disabled]="isProcessing">
+        📁 Upload PDF for Redaction
+      </button>
+      
+      <button 
+        class="btn btn-success" 
+        (click)="processUploadedFile()"
+        [disabled]="!selectedFile || isProcessing">
+        🔍 Analyze & Load Document
+      </button>
+      
+      <!-- Debug button to test if click events work -->
+      <button 
+        class="btn btn-warning" 
+        (click)="testButtonClick()"
+        style="margin-left: 10px;">
+        🧪 Test Click
+      </button>
+      
+      <button 
+        class="btn btn-info" 
+        (click)="toggleEntityPanel()"
+        [disabled]="!detectedEntities.length"
+        [class.active]="showEntityPanel">
+        📋 PII Entities ({{ detectedEntities.length }})
+      </button>
+      
+      <div *ngIf="selectedFile" class="file-info">
+        Selected: {{ selectedFile.name }} ({{ formatFileSize(selectedFile.size) }})
+      </div>
+      
+      <div *ngIf="isProcessing" class="processing-indicator">
+        🔄 Processing document... Analyzing for PII entities...
+      </div>
+
+      <div *ngIf="currentJob && !isProcessing" class="job-summary">
+        ✅ Analysis Complete: Found {{ currentJob.total_entities }} PII entities in {{ currentJob.total_pages }} pages 
+        ({{ currentJob.processing_time }}s)
+        <button class="btn btn-info btn-small" (click)="showJobDetails()">View Details</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Main Content Area -->
+  <div class="main-content">
+    <!-- Entity Selection Panel -->
+    <div class="entity-panel" [class.visible]="showEntityPanel" *ngIf="detectedEntities.length">
+      <div class="entity-panel-header">
+        <h3>Detected PII Entities</h3>
+        <div class="panel-controls">
+          <button class="btn btn-success btn-small" (click)="selectAllEntities()">Select All</button>
+          <button class="btn btn-warning btn-small" (click)="deselectAllEntities()">Deselect All</button>
+          <button class="btn btn-danger btn-small" (click)="toggleEntityPanel()">✕</button>
+        </div>
+      </div>
+      
+      <div class="entity-categories">
+        <div *ngFor="let category of getEntityCategories()" class="category-section">
+          <div class="category-header">
+            <input 
+              type="checkbox" 
+              [id]="'category-' + category.name"
+              [checked]="category.allSelected"
+              [indeterminate]="category.partialSelected"
+              (change)="toggleCategory(category.name, $event)">
+            <label [for]="'category-' + category.name" class="category-label">
+              {{ category.displayName }} ({{ category.count }})
+            </label>
+          </div>
+          
+          <div class="entity-list">
+            <div *ngFor="let entity of getEntitiesByCategory(category.name); trackBy: trackByEntity" 
+                 class="entity-item"
+                 [class.selected]="entity.selected"
+                 [class.highlighted]="entity.highlighted">
+              
+              <div class="entity-checkbox">
+                <input 
+                  type="checkbox" 
+                  [id]="'entity-' + entity.id"
+                  [checked]="entity.selected"
+                  (change)="toggleEntity(entity, $event)">
+              </div>
+              
+              <div class="entity-content" (click)="highlightEntityInDocument(entity)">
+                <div class="entity-text">{{ entity.text }}</div>
+                <div class="entity-meta">
+                  <span class="confidence">{{ (entity.confidence_score * 100).toFixed(0) }}%</span>
+                  <span class="position">Page {{ entity.pageNumber || '?' }}</span>
+                </div>
+              </div>
+              
+              <div class="entity-actions">
+                <button 
+                  class="btn btn-outline btn-tiny" 
+                  (click)="highlightEntityInDocument(entity)"
+                  title="Highlight and navigate to first instance">
+                  👁️
+                </button>
+                <button 
+                  class="btn btn-outline btn-tiny" 
+                  (click)="highlightAllInstancesOfEntity(entity)"
+                  title="Highlight all instances">
+                  �
+                </button>
+                <button 
+                  class="btn btn-outline btn-tiny" 
+                  (click)="toggleEntityRedaction(entity)"
+                  [class.active]="entity.hasRedaction"
+                  title="Toggle redaction">
+                  🖍️
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="panel-footer">
+        <div class="selection-summary">
+          Selected: {{ getSelectedEntityCount() }} / {{ detectedEntities.length }}
+        </div>
+        <button 
+          class="btn btn-primary" 
+          (click)="applySelectedRedactions()"
+          [disabled]="getSelectedEntityCount() === 0">
+          Apply Selected Redactions
+        </button>
+      </div>
+    </div>
+    
+    <!-- WebViewer Container -->
+    <div #viewer class="viewer" [class.with-panel]="showEntityPanel"></div>
+  </div>
+</div>
